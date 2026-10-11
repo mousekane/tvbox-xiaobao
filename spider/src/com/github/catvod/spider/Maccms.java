@@ -91,7 +91,10 @@ public class Maccms extends com.github.catvod.crawler.Spider {
         for (Map.Entry<String, String> e : cates.entrySet()) {
             if (!first) sb.append(',');
             sb.append("{\"type_id\":\"").append(esc(e.getKey()))
-              .append("\",\"type_name\":\"").append(esc(e.getValue())).append("\"}");
+              .append("\",\"type_name\":\"").append(esc(e.getValue())).append("\"");
+            String fjson = parseFilters(e.getKey());
+            if (!fjson.isEmpty()) sb.append(",\"filters\":").append(fjson);
+            sb.append("}");
             first = false;
         }
         return sb.append("],\"filters\":{}}").toString();
@@ -113,7 +116,7 @@ public class Maccms extends com.github.catvod.crawler.Spider {
     @Override
     public String categoryContent(String tid, String pg, boolean filter, HashMap<String, String> extend) {
         try {
-            Document doc = get(buildListUrl(tid, pg));
+            Document doc = get(buildListUrl(tid, pg, extend));
             if (isBlocked(doc)) return pageJson(pg, 1, new ArrayList<Vod>());
             List<Vod> vods = parseVodList(doc);
             int pageCount = parsePageCount(doc);
@@ -140,16 +143,19 @@ public class Maccms extends com.github.catvod.crawler.Spider {
     }
 
     /** 优先复用首页导航发现的真实链接形态，兜底用 maccms 标准地址 */
-    private String buildListUrl(String tid, String pg) {
-        String known = cateUrls.get(tid);
-        if (known != null && !known.isEmpty()) {
-            if (known.contains("page=")) return known.replaceAll("([?&]page=)\\d*", "$1" + pg);
-            if (Pattern.compile("/page/\\d+").matcher(known).find())
-                return known.replaceAll("/page/\\d+", "/page/" + pg);
-            if (known.endsWith(".html")) return known.replace(".html", "/page/" + pg + ".html");
-            return known + (known.contains("?") ? "&" : "?") + "page=" + pg;
+    private String buildListUrl(String tid, String pg, HashMap<String, String> extend) {
+        StringBuilder ub = new StringBuilder(host + "/index.php/vod/type/id/" + tid);
+        if (extend != null) {
+            for (String k : new String[]{"class", "area", "year", "lang"}) {
+                String v = extend.get(k);
+                if (v != null && !v.isEmpty()) {
+                    try { ub.append("/").append(k).append("/").append(java.net.URLEncoder.encode(v, "UTF-8")); }
+                    catch (Exception ignored) {}
+                }
+            }
         }
-        return host + "/index.php/vod/type/id/" + tid + "/page/" + pg + ".html";
+        ub.append("/page/").append(pg).append(".html");
+        return ub.toString();
     }
 
     // ---------------- 详情 ----------------
@@ -274,6 +280,7 @@ public class Maccms extends com.github.catvod.crawler.Spider {
 
     /** 从播放页 HTML 里抠直链（player_data JSON / 裸 m3u8 / mp4） */
     private String extractVideoUrl(String html) {
+        html = html.replace("\\/", "/");
         Matcher m = Pattern.compile("\"url\"\\s*:\\s*\"((?:https?:)?//[^\"]+?\\.(?:m3u8|mp4)[^\"]*?)\"").matcher(html);
         if (m.find()) return unesc(m.group(1));
         m = Pattern.compile("((?:https?:)?//[^\"'\\s<>]+?\\.(?:m3u8|mp4)(?:\\?[^\"'\\s<>]*)?)").matcher(html);
@@ -317,6 +324,11 @@ public class Maccms extends com.github.catvod.crawler.Spider {
                 pic = img.attr("abs:data-original");
                 if (pic.isEmpty()) pic = img.attr("abs:data-src");
                 if (pic.isEmpty()) pic = img.attr("abs:src");
+            }
+            // 本站懒加载：data-original 直接写在 a 标签上（无 img 子标签）
+            if (pic.isEmpty() && a != null) {
+                pic = a.attr("abs:data-original");
+                if (pic.isEmpty()) pic = a.attr("abs:data-src");
             }
             String remarks = "";
             Element rm = it.selectFirst(".text-right, .pic-text, [class*=remarks], .vod_remarks");
@@ -365,6 +377,46 @@ public class Maccms extends com.github.catvod.crawler.Spider {
     }
 
     // ---------------- 基础工具 ----------------
+
+    private String filterKey(String groupName) {
+        if (groupName.contains("类型") || groupName.contains("分类")) return "class";
+        if (groupName.contains("地区") || groupName.contains("区域")) return "area";
+        if (groupName.contains("年份") || groupName.contains("年代")) return "year";
+        if (groupName.contains("语言")) return "lang";
+        return null;
+    }
+
+    private String parseFilters(String tid) {
+        try {
+            String typeUrl = cateUrls.get(tid);
+            if (typeUrl == null || typeUrl.isEmpty()) typeUrl = host + "/index.php/vod/type/id/" + tid + ".html";
+            Document tdoc = get(typeUrl);
+            StringBuilder fb = new StringBuilder("{");
+            boolean ffirst = true;
+            for (Element grp : tdoc.select(".myui-screen__list")) {
+                Element label = grp.selectFirst("li a.text-muted");
+                if (label == null) continue;
+                String gname = label.text().trim();
+                String fkey = filterKey(gname);
+                if (fkey == null) continue;
+                if (!ffirst) fb.append(',');
+                fb.append("\"").append(fkey).append("\":{\"key\":\"").append(fkey)
+                  .append("\",\"name\":\"").append(esc(gname)).append("\",\"value\":[");
+                fb.append("{\"n\":\"全部\",\"v\":\"\"}");
+                for (Element o : grp.select("li a.btn:not(.text-muted)")) {
+                    String n = o.text().trim();
+                    if (n.isEmpty() || "全部".equals(n)) continue;
+                    fb.append(",{\"n\":\"").append(esc(n)).append("\",\"v\":\"").append(esc(n)).append("\"}");
+                }
+                fb.append("]}");
+                ffirst = false;
+            }
+            fb.append("}");
+            return ffirst ? "" : fb.toString();
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
 
     private Document get(String url) throws Exception {
         return Jsoup.connect(url)
