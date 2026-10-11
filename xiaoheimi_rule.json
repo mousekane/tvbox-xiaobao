@@ -1,8 +1,8 @@
 {
   "站名": "小宝影院",
   "主页url": "https://xiaoheimi.cc",
-  "分类url": "https://xiaoheimi.cc/index.php/vod/show?id={cateId}&class={class}&area={area}&year={year}&lang={lang}&by={by}&page={catePg}",
-  "分类": "电影$7#电视剧$6#动漫$5#综艺$3#纪录片$21",
+  "分类url": "https://xiaoheimi.cc/index.php/vod/type/id/{cateId}/page/{catePg}.html",
+  "分类": "电影片$1#连续剧$2#综艺片$3#动漫片$4#纪录片$21",
   "起始页": "1",
   "免嗅": "1",
   "数组": "myui-vodlist__thumb&&</a>",
@@ -33,20 +33,20 @@
   "嗅探词": ".m3u8#m3u8#.mp4#mp4#video",
   "classes": [
     {
-      "type_id": "7",
-      "type_name": "电影"
+      "type_id": "1",
+      "type_name": "电影片"
     },
     {
-      "type_id": "6",
-      "type_name": "电视剧"
-    },
-    {
-      "type_id": "5",
-      "type_name": "动漫"
+      "type_id": "2",
+      "type_name": "连续剧"
     },
     {
       "type_id": "3",
-      "type_name": "综艺"
+      "type_name": "综艺片"
+    },
+    {
+      "type_id": "4",
+      "type_name": "动漫片"
     },
     {
       "type_id": "21",
