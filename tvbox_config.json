@@ -3,14 +3,14 @@
   "wallpaper": "https://picsum.photos/1280/720/?blur=2",
   "sites": [
     {
-      "key": "xbpq_xiaoheimi",
+      "key": "maccms_xiaoheimi",
       "name": "小宝影院 🎬",
       "type": 3,
-      "api": "csp_XBPQ",
+      "api": "csp_Maccms",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
-      "ext": "https://gh-proxy.com/https://raw.githubusercontent.com/mousekane/tvbox-xiaobao/main/xiaoheimi_rule.json"
+      "ext": "https://xiaoheimi.cc"
     }
   ]
 }
