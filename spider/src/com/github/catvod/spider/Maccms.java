@@ -37,6 +37,12 @@ public class Maccms extends Spider {
     /** vod_id -> 详情页真实链接（列表解析时记录，详情页 URL 形态变化时仍可用） */
     private final Map<String, String> detailUrls = new LinkedHashMap<>();
 
+    /** 兜底分类：网站当前真实分类地址（2026-10-11 实测：导航已从 vod/show?id= 迁移到 vod/type/id/，
+     * 旧地址已失效）。首页导航动态发现失败时使用，保证分类地址永远是网站实际地址。 */
+    private static final String[][] FALLBACK_TYPES = {
+            {"1", "电影片"}, {"2", "连续剧"}, {"3", "综艺片"}, {"4", "动漫片"}, {"21", "纪录片"}
+    };
+
     // ---------------- 生命周期 ----------------
 
     @Override
@@ -72,6 +78,13 @@ public class Maccms extends Spider {
                 }
             }
         } catch (Exception ignored) {
+        }
+        if (cates.isEmpty()) {
+            // 动态发现失败：用网站当前真实分类地址兜底
+            for (String[] t : FALLBACK_TYPES) {
+                cates.put(t[0], t[1]);
+                cateUrls.put(t[0], host + "/index.php/vod/type/id/" + t[0] + ".html");
+            }
         }
         StringBuilder sb = new StringBuilder("{\"class\":[");
         boolean first = true;
@@ -136,7 +149,7 @@ public class Maccms extends Spider {
             if (known.endsWith(".html")) return known.replace(".html", "/page/" + pg + ".html");
             return known + (known.contains("?") ? "&" : "?") + "page=" + pg;
         }
-        return host + "/index.php/vod/show/id/" + tid + "/page/" + pg + ".html";
+        return host + "/index.php/vod/type/id/" + tid + "/page/" + pg + ".html";
     }
 
     // ---------------- 详情 ----------------
