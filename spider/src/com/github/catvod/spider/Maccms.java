@@ -159,8 +159,22 @@ public class Maccms extends com.github.catvod.crawler.Spider {
             String remarks = firstText(doc, ".myui-content__detail .data, .vodInfo .data, .data");
             String content = firstText(doc, ".myui-content__detail .desc, .vodDesc, .desc, #desc");
 
-            // 只输出单一播放源：全部剧集直接平铺，不分"线路"
-            Elements links = doc.select("a[href*=vod/play]");
+            // 只输出单一播放源：只取剧集列表区的链接（排除海报点击和"立即播放"按钮），按地址去重
+            Elements links = doc.select(".myui-content__list a[href*=vod/play], .stui-content__playlist a[href*=vod/play], ul[class*=playlist] a[href*=vod/play]");
+            if (links.isEmpty()) {
+                // 兜底：全页抓取但排除缩略图区
+                Elements all = doc.select("a[href*=vod/play]");
+                links = new Elements();
+                for (Element a : all) {
+                    if (a.selectFirst("img") != null) continue;
+                    boolean inThumb = false;
+                    for (Element p = a.parent(); p != null; p = p.parent()) {
+                        String cn = p.className();
+                        if (cn.contains("thumb") || cn.contains("poster")) { inThumb = true; break; }
+                    }
+                    if (!inThumb) links.add(a);
+                }
+            }
             List<String[]> eps = epList(links);
             StringBuilder purl = new StringBuilder();
             boolean ef = true;
@@ -181,13 +195,35 @@ public class Maccms extends com.github.catvod.crawler.Spider {
 
     private List<String[]> epList(Elements links) {
         List<String[]> eps = new ArrayList<>();
+        java.util.Map<String, Integer> urlIdx = new java.util.HashMap<>();
         for (Element a : links) {
             String t = a.text().trim();
             String href = a.attr("abs:href");
             if (href.isEmpty()) continue;
-            eps.add(new String[]{t.isEmpty() ? "正片" : t, href});
+            if ("立即播放".equals(t)) t = "正片";
+            if (t.isEmpty()) t = "正片";
+            Integer idx = urlIdx.get(href);
+            if (idx == null) {
+                urlIdx.put(href, eps.size());
+                eps.add(new String[]{t, href});
+            } else {
+                // 同地址去重：优先保留具名剧集（"第01集"优先于"正片"）
+                String oldName = eps.get(idx)[0];
+                if (isGenericName(oldName) && !isGenericName(t)) eps.get(idx)[0] = t;
+            }
+        }
+        // 若"正片"与具名剧集同地址已被合并，此处再兜底删除孤立的泛名（仅当存在具名剧集时）
+        boolean hasNamed = false;
+        for (String[] e : eps) if (!isGenericName(e[0])) { hasNamed = true; break; }
+        if (hasNamed) {
+            java.util.Iterator<String[]> it = eps.iterator();
+            while (it.hasNext()) if (isGenericName(it.next()[0])) it.remove();
         }
         return eps;
+    }
+
+    private boolean isGenericName(String n) {
+        return "正片".equals(n) || "立即播放".equals(n);
     }
 
     // ---------------- 搜索 ----------------
