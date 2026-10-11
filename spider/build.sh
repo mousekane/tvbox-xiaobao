@@ -22,7 +22,7 @@ if [ ! -f lib/android.jar ]; then
 fi
 
 echo "==> javac 编译"
-find src -name "*.java" > build/sources.txt
+find src src-stub -name "*.java" > build/sources.txt
 javac -encoding UTF-8 -source 8 -target 8 -nowarn -cp "lib/jsoup.jar:lib/android.jar" -d build/classes @build/sources.txt
 
 echo "==> 定位 d8"
@@ -45,6 +45,9 @@ if [ -z "$D8_BIN" ] || [ ! -x "$D8_BIN" ]; then
   exit 1
 fi
 echo "使用 d8：$D8_BIN"
+
+echo "==> 剔除编译期 stub（crawler.Spider 由宿主 App 提供，不打进包）"
+rm -rf build/classes/com/github/catvod/crawler
 
 echo "==> d8 打包 DEX（jsoup 一起打进包）"
 # shellcheck disable=SC2046
