@@ -1,0 +1,16 @@
+{
+  "spider": "https://tvbox.19901980.xyz/XBPQ.jar",
+  "wallpaper": "https://picsum.photos/1280/720/?blur=2",
+  "sites": [
+    {
+      "key": "xiaoheimi",
+      "name": "小宝影院 🎬",
+      "type": 3,
+      "api": "csp_XBPQ",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "ext": "https://tvbox.19901980.xyz/xiaoheimi_rule.json"
+    }
+  ]
+}
