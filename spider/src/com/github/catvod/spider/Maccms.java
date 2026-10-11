@@ -457,7 +457,7 @@ public class Maccms extends Spider {
         return sb.toString();
     }
 
-    /** 反转义播放页里常见的 \/ 和 \uXXXX */
+    /** 反转义播放页里常见的斜杠转义与 unicode 转义序列 */
     private String unesc(String s) {
         String r = s.replace("\\/", "/");
         Matcher m = Pattern.compile("\\\\u([0-9a-fA-F]{4})").matcher(r);
