@@ -22,7 +22,7 @@ fi
 
 echo "==> javac 编译"
 find src -name "*.java" > build/sources.txt
-javac -source 8 -target 8 -nowarn -cp "lib/jsoup.jar:lib/android.jar" -d build/classes @build/sources.txt
+javac -encoding UTF-8 -source 8 -target 8 -nowarn -cp "lib/jsoup.jar:lib/android.jar" -d build/classes @build/sources.txt
 
 echo "==> d8 打包 DEX（jsoup 一起打进包）"
 D8_BIN="$(command -v d8 || true)"
