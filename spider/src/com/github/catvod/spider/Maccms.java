@@ -63,11 +63,30 @@ public class Maccms extends com.github.catvod.crawler.Spider {
 
     @Override
     public String homeContent(boolean filter) {
-        // 主分类固定5个（用户要求）：细分全放筛选里，不再动态发现
+        // 主分类只取5个（用户要求）：按名字从首页导航动态发现，ID/地址格式变了也能自动跟上
         Map<String, String> cates = new LinkedHashMap<>();
-        for (String[] t : FALLBACK_TYPES) {
-            cates.put(t[0], t[1]);
-            cateUrls.put(t[0], host + "/index.php/vod/type/id/" + t[0] + ".html");
+        try {
+            Document doc = get(host + "/");
+            if (!isBlocked(doc)) {
+                for (Element a : doc.select("a[href*=vod/show], a[href*=vod/type]")) {
+                    String href = a.attr("abs:href");
+                    if (href.isEmpty()) continue;
+                    String tid = extractTid(href);
+                    String rawName = a.text().trim().replaceAll("\\s+", "");
+                    String stdName = stdCateName(rawName);
+                    if (tid.isEmpty() || stdName == null || cates.containsKey(tid)) continue;
+                    cates.put(tid, stdName);
+                    cateUrls.put(tid, href);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        if (cates.isEmpty()) {
+            // 动态发现失败：用硬编码兜底
+            for (String[] t : FALLBACK_TYPES) {
+                cates.put(t[0], t[1]);
+                cateUrls.put(t[0], host + "/index.php/vod/type/id/" + t[0] + ".html");
+            }
         }
         StringBuilder sb = new StringBuilder("{\"class\":[");
         boolean first = true;
@@ -127,7 +146,13 @@ public class Maccms extends com.github.catvod.crawler.Spider {
 
     /** 优先复用首页导航发现的真实链接形态，兜底用 maccms 标准地址 */
     private String buildListUrl(String tid, String pg, HashMap<String, String> extend) {
-        StringBuilder ub = new StringBuilder(host + "/index.php/vod/type/id/" + tid);
+        // 优先用首页动态发现的分类地址（网站改地址格式时自动跟上）
+        String base = cateUrls.get(tid);
+        if (base == null || base.isEmpty()) base = host + "/index.php/vod/type/id/" + tid + ".html";
+        // 去掉已有的 page 部分，统一重拼
+        base = base.replaceAll("/page/\\d+", "").replaceAll("([?&]page=)\\d*", "$1");
+        base = base.replaceAll("\\.html$", "");
+        StringBuilder ub = new StringBuilder(base);
         if (extend != null) {
             for (String k : new String[]{"class", "area", "year", "lang", "by"}) {
                 String v = extend.get(k);
@@ -377,6 +402,16 @@ public class Maccms extends com.github.catvod.crawler.Spider {
     }
 
     // ---------------- 基础工具 ----------------
+
+    /** 主分类名字标准化：只认5个，返回标准名；不认返回null */
+    private String stdCateName(String raw) {
+        if (raw.contains("电影")) return "电影片";
+        if (raw.contains("连续剧") || raw.contains("电视剧")) return "连续剧";
+        if (raw.contains("综艺")) return "综艺片";
+        if (raw.contains("动漫")) return "动漫片";
+        if (raw.contains("纪录")) return "纪录片";
+        return null;
+    }
 
     private String filterKey(String groupName) {
         if (groupName.contains("类型") || groupName.contains("分类")) return "class";
