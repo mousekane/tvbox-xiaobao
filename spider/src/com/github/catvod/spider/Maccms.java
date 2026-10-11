@@ -63,28 +63,11 @@ public class Maccms extends com.github.catvod.crawler.Spider {
 
     @Override
     public String homeContent(boolean filter) {
+        // 主分类固定5个（用户要求）：细分全放筛选里，不再动态发现
         Map<String, String> cates = new LinkedHashMap<>();
-        try {
-            Document doc = get(host + "/");
-            if (!isBlocked(doc)) {
-                for (Element a : doc.select("a[href*=vod/show], a[href*=vod/type]")) {
-                    String href = a.attr("abs:href");
-                    if (href.isEmpty()) continue;
-                    String tid = extractTid(href);
-                    String name = a.text().trim().replaceAll("\\s+", "");
-                    if (tid.isEmpty() || name.isEmpty() || name.length() > 8 || cates.containsKey(tid)) continue;
-                    cates.put(tid, name);
-                    cateUrls.put(tid, href);
-                }
-            }
-        } catch (Exception ignored) {
-        }
-        if (cates.isEmpty()) {
-            // 动态发现失败：用网站当前真实分类地址兜底
-            for (String[] t : FALLBACK_TYPES) {
-                cates.put(t[0], t[1]);
-                cateUrls.put(t[0], host + "/index.php/vod/type/id/" + t[0] + ".html");
-            }
+        for (String[] t : FALLBACK_TYPES) {
+            cates.put(t[0], t[1]);
+            cateUrls.put(t[0], host + "/index.php/vod/type/id/" + t[0] + ".html");
         }
         StringBuilder sb = new StringBuilder("{\"class\":[");
         boolean first = true;
@@ -146,7 +129,7 @@ public class Maccms extends com.github.catvod.crawler.Spider {
     private String buildListUrl(String tid, String pg, HashMap<String, String> extend) {
         StringBuilder ub = new StringBuilder(host + "/index.php/vod/type/id/" + tid);
         if (extend != null) {
-            for (String k : new String[]{"class", "area", "year", "lang"}) {
+            for (String k : new String[]{"class", "area", "year", "lang", "by"}) {
                 String v = extend.get(k);
                 if (v != null && !v.isEmpty()) {
                     try { ub.append("/").append(k).append("/").append(java.net.URLEncoder.encode(v, "UTF-8")); }
@@ -176,36 +159,17 @@ public class Maccms extends com.github.catvod.crawler.Spider {
             String remarks = firstText(doc, ".myui-content__detail .data, .vodInfo .data, .data");
             String content = firstText(doc, ".myui-content__detail .desc, .vodDesc, .desc, #desc");
 
-            LinkedHashMap<String, List<String[]>> groups = new LinkedHashMap<>();
-            Elements panels = doc.select(".myui-panel:has(a[href*=vod/play]), .stui-pannel:has(a[href*=vod/play]), .panel:has(a[href*=vod/play])");
-            for (Element panel : panels) {
-                Elements links = panel.select("a[href*=vod/play]");
-                if (links.isEmpty()) continue;
-                String from = firstText(panel, ".myui-panel_hd h3, .panel-heading h3, h3");
-                if (from.isEmpty()) from = "线路" + (groups.size() + 1);
-                groups.put(from, epList(links));
+            // 只输出单一播放源：全部剧集直接平铺，不分"线路"
+            Elements links = doc.select("a[href*=vod/play]");
+            List<String[]> eps = epList(links);
+            StringBuilder purl = new StringBuilder();
+            boolean ef = true;
+            for (String[] ep : eps) {
+                if (!ef) purl.append("#");
+                purl.append(esc(ep[0])).append("$").append(esc(ep[1]));
+                ef = false;
             }
-            if (groups.isEmpty()) {
-                Elements links = doc.select("a[href*=vod/play]");
-                if (!links.isEmpty()) groups.put("默认线路", epList(links));
-            }
-
-            StringBuilder from = new StringBuilder(), purl = new StringBuilder();
-            boolean gf = true;
-            for (Map.Entry<String, List<String[]>> e : groups.entrySet()) {
-                if (!gf) {
-                    from.append("$$$");
-                    purl.append("$$$");
-                }
-                from.append(esc(e.getKey()));
-                boolean ef = true;
-                for (String[] ep : e.getValue()) {
-                    if (!ef) purl.append("#");
-                    purl.append(esc(ep[0])).append("$").append(esc(ep[1]));
-                    ef = false;
-                }
-                gf = false;
-            }
+            String from = "播放地址";
 
             return "{\"list\":[{" + kv("vod_id", vid) + "," + kv("vod_name", name) + "," + kv("vod_pic", pic)
                     + "," + kv("vod_remarks", remarks) + "," + kv("vod_content", content)
@@ -411,8 +375,24 @@ public class Maccms extends com.github.catvod.crawler.Spider {
                 fb.append("]}");
                 ffirst = false;
             }
+            // 手动补全筛选：地区 / 年份 / 语言 / 排序（站内只提供类型）
+            if (!ffirst) fb.append(',');
+            fb.append("\"area\":{\"key\":\"area\",\"name\":\"地区\",\"value\":[");
+            fb.append("{\"n\":\"全部\",\"v\":\"\"}");
+            for (String a : new String[]{"大陆","香港","台湾","美国","韩国","日本","英国","法国","德国","泰国","印度","其他"})
+                fb.append(",{\"n\":\"").append(a).append("\",\"v\":\"").append(a).append("\"}");
+            fb.append("]},\"year\":{\"key\":\"year\",\"name\":\"年份\",\"value\":[");
+            fb.append("{\"n\":\"全部\",\"v\":\"\"}");
+            for (String y : new String[]{"2026","2025","2024","2023","2022","2021","2020","2019","2018","2017","2016","2015","2014","更早"})
+                fb.append(",{\"n\":\"").append(y).append("\",\"v\":\"").append(y).append("\"}");
+            fb.append("]},\"lang\":{\"key\":\"lang\",\"name\":\"语言\",\"value\":[");
+            fb.append("{\"n\":\"全部\",\"v\":\"\"}");
+            for (String l : new String[]{"国语","粤语","英语","韩语","日语","法语","德语","其他"})
+                fb.append(",{\"n\":\"").append(l).append("\",\"v\":\"").append(l).append("\"}");
+            fb.append("]},\"by\":{\"key\":\"by\",\"name\":\"排序\",\"value\":[");
+            fb.append("{\"n\":\"最新\",\"v\":\"time\"},{\"n\":\"最热\",\"v\":\"hits\"},{\"n\":\"评分\",\"v\":\"score\"}]}");
             fb.append("}");
-            return ffirst ? "" : fb.toString();
+            return fb.toString();
         } catch (Exception ignored) {
             return "";
         }
