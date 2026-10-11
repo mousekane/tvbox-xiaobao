@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
  *  "searchable":1,"quickSearch":1,"filterable":1,"ext":"https://xiaoheimi.cc"}
  * ext 也支持 JSON：{"host":"https://xiaoheimi.cc","ua":"自定义 UA"}
  */
-public class Maccms extends Spider {
+public class Maccms extends com.github.catvod.crawler.Spider {
 
     private String host = "";
     private String ua = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
